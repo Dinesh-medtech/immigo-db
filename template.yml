@@ -1,0 +1,645 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Template description
+  Last Modified: 
+  Author: Vignesh S
+
+Parameters:
+  EnvironmentName:
+    Description: Environment Name
+    Type: String
+  BuildHash:
+    Type: String
+    Default: ""
+  ProjectName:
+    Description: Project Name
+    Type: String
+  DBName:
+    Description: Database Name 
+    Type: String
+  DBUserName:
+    Description: Database Master User Name
+    Type: String  
+  # DBPassword:
+  #   Description: Database Master password
+  #   Type: String
+  #   NoEcho: true
+  DBEngineVersion:
+    Description: Select Database Engine Version
+    Type: String
+  DBPort:
+    Description: TCP/IP Port for the Database Instance
+    Type: Number
+    Default: "5432"
+  Engine:
+    Description: Database Engine
+    Type: String
+  EngineMode:
+    Description: Database EngineMode
+    Type: String
+    Default: serverless
+  MaxCapacity:
+    Description: Database Max CPU Capacity
+    Type: String
+    Default: ""
+  MinCapacity:
+    Description: Database Min CPU Capacity
+    Type: String
+    Default: ""
+  LambdaHostSecurityGroup:
+    Description: Lambda Host Security Group
+    Type: String 
+    Default: "" 
+  KmsKeyId:
+    Description: Business Unit based KMS key Id 
+    Type: String
+    Default: "" 
+  DBSnapshotName:
+    Description: DB Snapshot ID to restore database.
+    Type: String
+    Default: ""
+  DBClusterIdentifier:
+    Description: DB Cluster Identifier
+    Type: String 
+  DBInstanceIdentifier:
+    Description: DB Instance Identifier
+    Type: String 
+  EnableBacktrack:
+    Description: Enable or disable the BacktrackWindow feature
+    Type: String
+    AllowedValues: 
+      - "true"
+      - "false"
+    Default: "false"
+  RetentionPolicy:
+    Type: Number
+    Default: 30
+  CreateGlobalCluster:
+    Description: Create GlobalCluster
+    Type: String
+    AllowedValues: 
+      - "true"
+      - "false"
+    Default: "false"
+  PrimaryRegion:
+    Description: Primary DataBase Region
+    Type: String 
+    Default: ""
+  SecondaryRegion:
+    Description: Secondary DataBase Region
+    Type: String 
+    Default: ""
+  EnableLowerCaseTableNames:
+    Description: Enable Lower Case Table Names
+    Type: String
+    AllowedValues: 
+      - "true"
+      - "false"
+    Default: "false"
+  EnableIAMDatabaseAuthentication:
+    Description: Enable IAM Database Authentication
+    Type: String
+    AllowedValues: 
+      - "true"
+      - "false"
+    Default: "false"  
+
+
+Conditions:
+  isPrimaryRegion:
+    Fn::Equals:
+    - Ref: PrimaryRegion
+    - Ref: AWS::Region
+  isSecondaryRegion:
+    Fn::Equals:
+    - Ref: SecondaryRegion
+    - Ref: AWS::Region
+  isGlobalCluster:
+    Fn::Equals:
+    - Ref: CreateGlobalCluster
+    - "true"
+  isPrimaryRegionAndCreateGlobalCluster: !And
+    - !Condition isPrimaryRegion
+    - !Condition isGlobalCluster
+  isUseDBSnapshotOrisSecondaryRegion: !Or
+    - !Condition isSecondaryRegion
+    - !Condition isUseDBSnapshot
+  isProduction:
+    Fn::Equals:
+    - Ref: EnvironmentName
+    - Prod
+  isStaging:
+    Fn::Equals:
+    - Ref: EnvironmentName
+    - Staging
+  isBeta:
+    Fn::Equals:
+    - Ref: EnvironmentName
+    - Beta  
+  isDev:
+    Fn::Equals:
+    - Ref: EnvironmentName
+    - Dev
+  isNonProd:
+    Fn::Or:
+    - Condition: isDev
+    - Condition: isStaging
+    - Condition: isBeta
+  isPostgresql:
+    Fn::Equals:
+    - Ref: Engine
+    - aurora-postgresql
+  isMysql:
+    Fn::Equals:
+    - Ref: Engine
+    - aurora-mysql 
+  isMaxCapacityEmpty:
+    Fn::Equals:
+    - Ref: MaxCapacity
+    - ""
+  isMinCapacityEmpty:
+    Fn::Equals:
+    - Ref: MinCapacity
+    - ""  
+  MaxCapacityDefaultValueProd:
+    Fn::And:
+    - Condition: isProduction
+    - Condition: isMaxCapacityEmpty
+  MaxCapacityDefaultValueNonProd:
+    Fn::And:
+    - Condition: isNonProd
+    - Condition: isMaxCapacityEmpty
+  MinCapacityDefaultValueProd:
+    Fn::And:
+    - Condition: isProduction
+    - Condition: isMinCapacityEmpty
+  MinCapacityDefaultValueNonProd:
+    Fn::And:
+    - Condition: isNonProd
+    - Condition: isMinCapacityEmpty    
+  isReplica:
+    Fn::Or:
+    - Condition: isNonProd
+    - Condition: isProduction
+  isUseDBSnapshot: !Not [!Equals [!Ref DBSnapshotName, ""]]
+  EnableBacktrackWindow: !Equals [!Ref EnableBacktrack, "true"]
+  EnableBacktrackAndMysql:
+    Fn::And:
+    - Condition: EnableBacktrackWindow
+    - Condition: isMysql
+  isUsEast1:
+    Fn::Equals:
+      - !Ref AWS::Region
+      - us-east-1
+  isEuCentral1:
+    Fn::Equals:
+      - !Ref AWS::Region
+      - eu-central-1  
+  EnableLowerCaseTableNamesParam: !Equals [!Ref EnableLowerCaseTableNames, "true"]
+  EnableLowerCaseTableNamesParamAndisMysql:
+    Fn::And:
+    - Condition: EnableLowerCaseTableNamesParam
+    - Condition: isMysql
+
+Mappings:
+  ConfigMap:
+    Test:
+      Platform: test
+      VpcId: vpc-072b69f6c8e1b45f0
+      SubnetIds: 'subnet-02867b2c648a47a8a,subnet-000f3833371ac91d6'
+      VpcCidr: '10.1.0.0/16'
+    Dev:
+      Platform: dev
+      VpcId: vpc-072b69f6c8e1b45f0
+      SubnetIds: 'subnet-02867b2c648a47a8a,subnet-000f3833371ac91d6'
+      VpcCidr: '10.1.0.0/16'
+    Staging:
+      Platform: staging
+    Prod:
+      Platform: prod
+  RegionShortForms:
+    us-east-1:
+      short: ue1
+    eu-central-1:
+      short: ec1
+    ap-southeast-1:
+      short: as1
+      
+
+Resources:
+  DBClusterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ["-", [!Ref ProjectName, RDSDBRole, !Ref EnvironmentName]]
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-RDSDBRole-${EnvironmentName}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: rds.amazonaws.com
+            Action: sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: !Join ["-", [!Ref ProjectName, RDSDBRole, CloudwatchLoggingPolicy, !Ref EnvironmentName]]
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutRetentionPolicy
+                  - logs:DeleteRetentionPolicy
+                  - logs:DescribeLogStreams
+                Effect: Allow
+                Resource:
+                  - !Sub  "arn:aws:logs:*:*:log-group:/aws/rds/*"
+        - PolicyName: !Join ["-", [!Ref ProjectName, RDSDBRole, CloudwatchLogEventsPolicy, !Ref EnvironmentName]]
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - logs:PutLogEvents
+                  - logs:GetLogEvents
+                Effect: Allow
+                Resource:
+                  - !Sub  "arn:aws:logs:*:*:log-group:/aws/rds/*:log-stream:*"
+                  
+  DBSecretsManager:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+        Name: !Sub
+          - "${Platform}/${ProjectName}/DB"
+          - Platform: !FindInMap [ConfigMap, !Ref EnvironmentName, Platform]
+        Description: 'Database Secrets Manager'
+        GenerateSecretString:
+            RequireEachIncludedType: True
+            SecretStringTemplate:
+                !Sub
+                  - '{"username": "${DBUserName}"}'
+                  - DBUserName: !Ref DBUserName
+            GenerateStringKey: 'password'
+            PasswordLength: 25
+            ExcludePunctuation: True
+
+  DBSecretsManagerAccessPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Join ["-", [!FindInMap [ConfigMap, !Ref EnvironmentName, Platform], !Ref ProjectName, DB, SecretsManagerPolicy, !Ref EnvironmentName]]
+      Path: /
+      PolicyDocument:
+         Version: '2012-10-17'
+         Statement:
+           - Effect: Allow
+             Action:
+               - secretsmanager:GetResourcePolicy
+               - secretsmanager:GetSecretValue
+               - secretsmanager:DescribeSecret
+               - secretsmanager:ListSecretVersionIds
+               - secretsmanager:ListSecrets
+             Resource: !Ref DBSecretsManager          
+ 
+  ClusterSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Security Group for the DB Cluster
+      GroupName: !Sub "SG-${ProjectName}-DB-Cluster-${EnvironmentName}"
+      VpcId: !ImportValue Aca-vpcId-NonProd
+      SecurityGroupIngress:
+        - IpProtocol: "TCP"
+          FromPort: !Ref DBPort
+          ToPort: !Ref DBPort
+          CidrIp: !FindInMap [ConfigMap, !Ref EnvironmentName, VpcCidr]
+        # - IpProtocol: "TCP"
+        #   FromPort: !Ref DBPort
+        #   ToPort: !Ref DBPort
+        #   SourceSecurityGroupId: !Ref CustomResourceSecurityGroup
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          FromPort: -1
+          ToPort: -1
+          CidrIp: !FindInMap [ConfigMap, !Ref EnvironmentName, VpcCidr]
+          Description: "Allows access to vpc cidr ip range"
+      Tags:
+        - Key: Name
+          Value: !Sub SG-${ProjectName}-DBCluster-${EnvironmentName}
+
+  DBSubnetGroup:
+    Type: 'AWS::RDS::DBSubnetGroup'
+    Properties:
+      DBSubnetGroupDescription: !Ref 'AWS::StackName'
+      SubnetIds: !Split [",", !ImportValue Aca-Subnets-NonProd]
+
+  AuroraDBCluster:
+    DependsOn: DBClusterRole
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Type: AWS::RDS::DBCluster
+    Properties:
+      DBClusterIdentifier: !Join ['-', [!Ref DBClusterIdentifier,'Cluster',!Ref EnvironmentName]]
+      EnableIAMDatabaseAuthentication: !Ref EnableIAMDatabaseAuthentication
+      Engine: !Ref Engine
+      EngineVersion: !Ref DBEngineVersion
+      DatabaseName: !Ref DBName
+      Port: !Ref DBPort
+      MasterUsername: !Join ['', ['{{resolve:secretsmanager:', !Ref DBSecretsManager, ':SecretString:username}}' ]]
+      MasterUserPassword: !Join ['', ['{{resolve:secretsmanager:', !Ref DBSecretsManager, ':SecretString:password}}' ]]
+      ServerlessV2ScalingConfiguration:
+        MaxCapacity: 
+          !If 
+            - MaxCapacityDefaultValueNonProd
+            - 1
+            - !If 
+                - MaxCapacityDefaultValueProd
+                - 8
+                - !Ref MaxCapacity
+        MinCapacity: 
+          !If 
+            - MinCapacityDefaultValueNonProd
+            - 0.5
+            - !If 
+                - MinCapacityDefaultValueProd
+                - 2
+                - !Ref MinCapacity
+      BackupRetentionPeriod: 35
+      StorageEncrypted: true
+      DeletionProtection: true
+      EnableCloudwatchLogsExports: 
+        !If
+          - isPostgresql
+          - - 'postgresql'
+          - - 'error'
+            - 'audit'
+            - 'general'
+            - 'slowquery'
+             
+      # Attach KMS key for all environment
+      KmsKeyId: !ImportValue acabot-key
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VpcSecurityGroupIds:
+      - !Ref ClusterSecurityGroup 
+      AssociatedRoles:
+        !If
+          - isPostgresql
+          - 
+            - FeatureName: Comprehend
+              RoleArn: !GetAtt DBClusterRole.Arn
+          -
+            - RoleArn: !GetAtt DBClusterRole.Arn
+      BacktrackWindow:
+        !If
+          - EnableBacktrackAndMysql
+          - !If
+              - isProduction
+              - 259200  # 72 hours if isProduction
+              - 86400  # 24 hours if not isProduction
+          - !Ref AWS::NoValue  # if not EnableBacktrackAndMysql
+      SnapshotIdentifier: !If [isUseDBSnapshot, !Ref DBSnapshotName, !Ref "AWS::NoValue"]  
+      Tags:
+        - Key: Name
+          Value: !Ref ProjectName     
+
+  DatabaseWriterInstance:
+      Type: AWS::RDS::DBInstance
+      Properties:
+        DBInstanceIdentifier: !Join ['-', [!Ref DBInstanceIdentifier,'writer',!Ref EnvironmentName]]
+        DBClusterIdentifier: !Ref AuroraDBCluster
+        Engine: !Ref Engine
+        DBInstanceClass: db.serverless
+        PubliclyAccessible: True
+
+  SecretRDSInstanceAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+        SecretId: !Ref DBSecretsManager
+        TargetId: !Ref AuroraDBCluster
+        TargetType: AWS::RDS::DBCluster
+
+  ReadWriteDBUserAccessPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Join ["-", [!FindInMap [ConfigMap, !Ref EnvironmentName, Platform], !Ref ProjectName, ReadWriteDBUser,AccessPolicy, !Ref EnvironmentName]]
+      Path: /
+      PolicyDocument:
+         Version: '2012-10-17'
+         Statement:
+            - Effect: Allow
+              Action:
+                  - "rds-db:connect"
+                  - "rds-data:ExecuteStatement"
+                  - "rds-data:ExecuteSql"
+                  - "rds-data:CommitTransaction"
+                  - "rds-data:RollbackTransaction" 
+                  - "rds-data:BeginTransaction"
+              Resource: !Sub
+                  - arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:${ResourceId}/AN24_rw_Acabot
+                  - ResourceId: !GetAtt AuroraDBCluster.DBClusterResourceId
+
+  ReadWriteUserDBUserSecretsManager:
+    Type: 'AWS::SecretsManager::Secret'
+    Properties:
+      Name: !Sub
+          - "${Platform}/${ProjectName}/RWDBiamuser"
+          - Platform: !FindInMap [ConfigMap, !Ref EnvironmentName, Platform]
+      SecretString: !Sub '{"host": "${AuroraDBCluster.Endpoint.Address}", "port": "${AuroraDBCluster.Endpoint.Port}", "dbname": "${DBName}", "username": "AN24_rw_Acabot"}'
+
+  # CustomResourceSecurityGroup:
+  #   Type: AWS::EC2::SecurityGroup
+  #   Properties:
+  #     GroupDescription: Security Group for Genie liquibase custom resource
+  #     GroupName: !Sub SG-${ProjectName}-LiquiBase-CR-${EnvironmentName}
+  #     VpcId: !FindInMap [ConfigMap, !Ref EnvironmentName, VpcId]
+  #     SecurityGroupIngress:
+  #       - IpProtocol: "TCP"
+  #         FromPort: 443
+  #         ToPort: 443
+  #         CidrIp: !FindInMap [ConfigMap, !Ref EnvironmentName, VpcCidr]
+  #     SecurityGroupEgress:
+  #       - IpProtocol: "TCP"
+  #         FromPort: 3306
+  #         ToPort: 3306
+  #         CidrIp: !FindInMap [ConfigMap, !Ref EnvironmentName, VpcCidr]
+  #       - IpProtocol: "TCP"
+  #         FromPort: 443
+  #         ToPort: 443
+  #         CidrIp: !FindInMap [ConfigMap, !Ref EnvironmentName, VpcCidr]
+  #       - IpProtocol: "TCP"
+  #         FromPort: 443
+  #         ToPort: 443
+  #         CidrIp: 0.0.0.0/0
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Sub SG-${ProjectName}-LiquiBase-CR-${EnvironmentName}
+
+  # LiquibaseLambdaExecutionRole:
+  #   Type: AWS::IAM::Role
+  #   Properties:
+  #     RoleName: !Sub ${ProjectName}-Liquibase-LambdaExecutionRole
+  #     Description: Liquibase Lambda Role
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Sub ${ProjectName}-Liquibase-LambdaExecutionRole
+
+  #     AssumeRolePolicyDocument:
+  #       Version: "2012-10-17"
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service: lambda.amazonaws.com
+  #           Action: sts:AssumeRole
+  #     Path: "/"
+  #     ManagedPolicyArns:
+  #       - !Ref DBSecretsManagerAccessPolicy
+  #     Policies:
+  #       - PolicyName: !Sub ${ProjectName}-LoggingPolicy
+  #         PolicyDocument:
+  #           Version: 2012-10-17
+  #           Statement:
+  #             - Action:
+  #                 - logs:CreateLogGroup
+  #                 - logs:CreateLogStream
+  #                 - logs:PutLogEvents
+  #                 - logs:PutRetentionPolicy
+  #                 - logs:DeleteRetentionPolicy
+  #               Effect: Allow
+  #               Resource:
+  #                 - !Sub arn:aws:logs:*:*:*
+  #             - Action:
+  #                 - s3:GetObject
+  #                 - s3:PutObject
+  #               Effect: Allow
+  #               Resource:
+  #                 - !Sub arn:aws:s3:::*
+  #       - PolicyName: !Sub ${ProjectName}-VPCPolicy
+  #         PolicyDocument:
+  #           Version: 2012-10-17
+  #           Statement:
+  #             - Action:
+  #                 - ec2:CreateNetworkInterface
+  #                 - ec2:DescribeNetworkInterfaces
+  #                 - ec2:DeleteNetworkInterface
+  #                 - ec2:AssignPrivateIpAddresses
+  #                 - ec2:UnassignPrivateIpAddresses
+  #               Effect: Allow
+  #               Resource:
+  #                 - "*"
+  #       - PolicyName: !Sub ${ProjectName}-APIGatewayPolicy
+  #         PolicyDocument:
+  #           Version: 2012-10-17
+  #           Statement:
+  #             - Action:
+  #                 - execute-api:Invoke
+  #                 - execute-api:ManageConnections
+  #               Effect: Allow
+  #               Resource:
+  #                 - "arn:aws:execute-api:*:*:*"
+  #       - PolicyName: !Sub ${ProjectName}-AmazonS3ObjectLambdaExecutionRolePolicy
+  #         PolicyDocument:
+  #           Version: 2012-10-17
+  #           Statement:
+  #             - Action:
+  #                 - logs:CreateLogGroup
+  #                 - logs:CreateLogStream
+  #                 - logs:PutLogEvents
+  #                 - s3-object-lambda:WriteGetObjectResponse
+  #               Effect: Allow
+  #               Resource:
+  #                 - "*"
+  #       - PolicyName: !Sub ${ProjectName}-Liquibase-KMSPolicy
+  #         PolicyDocument:
+  #           Version: 2012-10-17
+  #           Statement:
+  #             - Action:
+  #                 - "kms:GetPublicKey"
+  #                 - "kms:Decrypt"
+  #                 - "kms:GetKeyPolicy"
+  #                 - "kms:GetParametersForImport"
+  #                 - "kms:GetKeyRotationStatus"
+  #                 - "kms:DescribeCustomKeyStores"
+  #                 - "kms:DescribeKey"
+  #               Effect: Allow
+  #               Resource: !ImportValue genie-key
+
+  # LiquibaseFunction:
+  #   Type: AWS::Serverless::Function
+  #   Properties:
+  #     FunctionName: !Sub ${ProjectName}-Liquibase-${EnvironmentName}
+  #     CodeUri: ./db
+  #     Handler: liquibase.Handler
+  #     Runtime: java11
+  #     Role: !GetAtt LiquibaseLambdaExecutionRole.Arn
+  #     Timeout: 300
+  #     MemorySize: 512
+  #     VpcConfig:
+  #       SubnetIds: !Split [",", !FindInMap [ConfigMap, !Ref EnvironmentName, SubnetIds]]
+  #       SecurityGroupIds: 
+  #         - !Ref CustomResourceSecurityGroup 
+
+  # LiquibaseCustomResource:
+  #   Type: Custom::Liquibase
+  #   Properties:
+  #     ServiceToken: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${LiquibaseFunction}"
+  #     secretsManagerArn: !Ref DBSecretsManager
+  #     environmentName: !Ref EnvironmentName
+  #     BuildHash: !Ref BuildHash
+    
+Outputs:
+  DBSecretsManagerAccessPolicy:
+    Description: Managed Policy for Accessing DBSecretsManager
+    Value: !Ref DBSecretsManagerAccessPolicy
+    Export:
+      Name: !Sub "${ProjectName}-DBSecretsManagerAcessPolicy"
+
+  DBSecretsManagerPolicy:
+    Description: Managed Policy for Accessing DBSecretsManager
+    Value: !Ref DBSecretsManagerAccessPolicy
+    Export:
+      Name: !Sub
+        - "${ProjectName}-DBSecretsManagerAcessPolicy-${EnvironmentName}"
+        - EnvironmentName: !FindInMap [ConfigMap, !Ref EnvironmentName, Platform]
+
+  DBSecretsManagerName:
+    Description: DB SecretsManager Name
+    #This code for to get secret manager name that includes dash and forword slash from the arn.
+    Value: !Select [0, !Split ["-", !Select [6, !Split [":", !Ref DBSecretsManager]]]]
+    Export:
+      Name: !Sub "${ProjectName}-DBSecretsManagerName"
+
+  SecretsManagerName:
+    Description: DB SecretsManager Name
+    #This code for to get secret manager name that includes dash and forword slash from the arn.
+    Value: !Select [0, !Split ["-", !Select [6, !Split [":", !Ref DBSecretsManager]]]]
+    # Value: !Select [ 0,!Split [-, !Select [6, !Split [":", !Ref DBSecretsManager]]]]
+    Export:
+      Name: !Sub
+        - "${ProjectName}-DBSecretsManagerName-${EnvironmentName}"
+        - EnvironmentName: !FindInMap [ConfigMap, !Ref EnvironmentName, Platform]
+
+  DBSecurityGroupID:
+    Description: DB Security Group ID
+    Value: !GetAtt ClusterSecurityGroup.GroupId
+    Export:
+      Name: !Sub "${ProjectName}-DB-securitygroup-id"
+
+  DBSecurityGroup:
+    Description: DB Security Group ID
+    Value: !GetAtt ClusterSecurityGroup.GroupId
+    Export:
+      Name: !Sub
+        - "${ProjectName}-DB-securitygroup-id-${EnvironmentName}" 
+        - EnvironmentName: !FindInMap [ConfigMap, !Ref EnvironmentName, Platform]
+
+  DBHostName:
+    Description: DB HostName
+    Value: !GetAtt AuroraDBCluster.Endpoint.Address
+    Export:
+      Name: !Sub "${ProjectName}-DB-Endpoint"
+
+  # DBPassword:
+  #   Description: DB Password
+  #   Value: !Ref DBPassword
+  #   Export:
+  #     Name: !Sub "${ProjectName}-DB-Password"
