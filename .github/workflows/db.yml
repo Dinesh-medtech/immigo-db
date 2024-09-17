@@ -1,0 +1,59 @@
+
+name: CI Pipeline
+on:
+  workflow_call:
+    inputs:
+      AWSDefaultRegion:
+        required: false
+        type: string
+      EnvironmentName:
+        required: false
+        type: string
+      ProjectName:
+        required: false
+        type: string
+      parameters:
+        required: false
+        type: string
+
+jobs:
+  Deploy_DB:
+    runs-on: ubuntu-latest
+    environment: "Development"
+    env:
+      AWS_OIDC_ROLE_ARN: "${{ secrets.AWS_OIDC_ROLE_ARN_NP }}"
+      AWS_DEFAULT_REGION: ${{ inputs.AWSDefaultRegion }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Print all the github actions events
+        uses: hmarr/debug-action@v2
+      - name: checkout application repo
+        uses: actions/checkout@v4
+      - name: Setup SAM cli
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - uses: aws-actions/setup-sam@v2
+      - name: sam Temporary fix https://github.com/aws/aws-sam-cli/issues/4527
+        run: $(dirname $(readlink $(which sam)))/pip install --force-reinstall "cryptography==38.0.4"
+      - name: Validate SAM Template
+        run: sam validate
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ env.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+          role-session-name: "GitHubActions"
+      - name: Deploy Cloudformation template
+        run: |
+            sam deploy --stack-name ${{ inputs.ProjectName }}-DB-${{inputs.EnvironmentName}}\
+              --region ${{env.AWS_DEFAULT_REGION}} \
+              --no-disable-rollback \
+              --no-confirm-changeset \
+              --resolve-s3 \
+              --no-fail-on-empty-changeset \
+              --parameter-overrides 'ProjectName=${{inputs.ProjectName}} ${{inputs.PARAMETERS}}' \
+              --tags CreatedBy=Acabot-DB \
+              --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM

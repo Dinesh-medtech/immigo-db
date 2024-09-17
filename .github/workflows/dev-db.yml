@@ -1,0 +1,15 @@
+name: Build and Deploy in Development(DB)
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  Acabot:
+    uses: ./.github/workflows/db.yml
+    with:
+      AWSDefaultRegion: us-east-1
+      EnvironmentName: Dev
+      ProjectName: Acabot
+      parameters: "EnvironmentName=Dev ProjectName=Acabot DBInstanceIdentifier=Acabot DBClusterIdentifier=Acabot EnableBacktrack=true Engine=aurora-postgresql DBEngineVersion=15.4 DBName=acabotdb DBUserName=AN24_Acabot MinCapacity=0.5 MaxCapacity=1 PrimaryRegion=us-east-1 SecondaryRegion=us-east-2 BuildHash=${{github.sha}}"
+    secrets: inherit
