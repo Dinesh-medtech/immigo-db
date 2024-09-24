@@ -377,7 +377,7 @@ Resources:
             - 'slowquery'
              
       # Attach KMS key for all environment
-      KmsKeyId: !ImportValue acabot-key
+      KmsKeyId: !ImportValue Immigo-key
       DBSubnetGroupName: !Ref DBSubnetGroup
       VpcSecurityGroupIds:
       - !Ref ClusterSecurityGroup 
@@ -435,7 +435,7 @@ Resources:
                   - "rds-data:RollbackTransaction" 
                   - "rds-data:BeginTransaction"
               Resource: !Sub
-                  - arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:${ResourceId}/AN24_rw_Acabot
+                  - arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:${ResourceId}/AN24_rw_Immigo
                   - ResourceId: !GetAtt AuroraDBCluster.DBClusterResourceId
 
   ReadWriteUserDBUserSecretsManager:
@@ -444,7 +444,7 @@ Resources:
       Name: !Sub
           - "${Platform}/${ProjectName}/RWDBiamuser"
           - Platform: !FindInMap [ConfigMap, !Ref EnvironmentName, Platform]
-      SecretString: !Sub '{"host": "${AuroraDBCluster.Endpoint.Address}", "port": "${AuroraDBCluster.Endpoint.Port}", "dbname": "${DBName}", "username": "AN24_rw_Acabot"}'
+      SecretString: !Sub '{"host": "${AuroraDBCluster.Endpoint.Address}", "port": "${AuroraDBCluster.Endpoint.Port}", "dbname": "${DBName}", "username": "AN24_rw_Immigo"}'
 
   # CustomResourceSecurityGroup:
   #   Type: AWS::EC2::SecurityGroup
