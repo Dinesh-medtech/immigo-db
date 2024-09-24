@@ -307,7 +307,7 @@ Resources:
     Properties:
       GroupDescription: Security Group for the DB Cluster
       GroupName: !Sub "SG-${ProjectName}-DB-Cluster-${EnvironmentName}"
-      VpcId: !ImportValue Aca-vpcId-NonProd
+      VpcId: !ImportValue Immigo-vpcId-NonProd
       SecurityGroupIngress:
         - IpProtocol: "TCP"
           FromPort: !Ref DBPort
@@ -331,7 +331,7 @@ Resources:
     Type: 'AWS::RDS::DBSubnetGroup'
     Properties:
       DBSubnetGroupDescription: !Ref 'AWS::StackName'
-      SubnetIds: !Split [",", !ImportValue Aca-Subnets-NonProd]
+      SubnetIds: !Split [",", !ImportValue Immigo-Subnets-NonProd]
 
   AuroraDBCluster:
     DependsOn: DBClusterRole
@@ -418,25 +418,25 @@ Resources:
         TargetId: !Ref AuroraDBCluster
         TargetType: AWS::RDS::DBCluster
 
-  ReadWriteDBUserAccessPolicy:
-    Type: AWS::IAM::ManagedPolicy
-    Properties:
-      ManagedPolicyName: !Join ["-", [!FindInMap [ConfigMap, !Ref EnvironmentName, Platform], !Ref ProjectName, ReadWriteDBUser,AccessPolicy, !Ref EnvironmentName]]
-      Path: /
-      PolicyDocument:
-         Version: '2012-10-17'
-         Statement:
-            - Effect: Allow
-              Action:
-                  - "rds-db:connect"
-                  - "rds-data:ExecuteStatement"
-                  - "rds-data:ExecuteSql"
-                  - "rds-data:CommitTransaction"
-                  - "rds-data:RollbackTransaction" 
-                  - "rds-data:BeginTransaction"
-              Resource: !Sub
-                  - arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:${ResourceId}/AN24_rw_Immigo
-                  - ResourceId: !GetAtt AuroraDBCluster.DBClusterResourceId
+  # ReadWriteDBUserAccessPolicy:
+  #   Type: AWS::IAM::ManagedPolicy
+  #   Properties:
+  #     ManagedPolicyName: !Join ["-", [!FindInMap [ConfigMap, !Ref EnvironmentName, Platform], !Ref ProjectName, ReadWriteDBUser,AccessPolicy, !Ref EnvironmentName]]
+  #     Path: /
+  #     PolicyDocument:
+  #        Version: '2012-10-17'
+  #        Statement:
+  #           - Effect: Allow
+  #             Action:
+  #                 - "rds-db:connect"
+  #                 - "rds-data:ExecuteStatement"
+  #                 - "rds-data:ExecuteSql"
+  #                 - "rds-data:CommitTransaction"
+  #                 - "rds-data:RollbackTransaction" 
+  #                 - "rds-data:BeginTransaction"
+  #             Resource: !Sub
+  #                 - arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:${ResourceId}/AN24_rw_Immigo
+  #                 - ResourceId: !GetAtt AuroraDBCluster.DBClusterResourceId
 
   ReadWriteUserDBUserSecretsManager:
     Type: 'AWS::SecretsManager::Secret'
