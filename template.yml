@@ -9,9 +9,9 @@ Parameters:
   EnvironmentName:
     Description: Environment Name
     Type: String
-  BuildHash:
-    Type: String
-    Default: ""
+  # BuildHash:
+  #   Type: String
+  #   Default: ""
   ProjectName:
     Description: Project Name
     Type: String
@@ -35,10 +35,10 @@ Parameters:
   Engine:
     Description: Database Engine
     Type: String
-  EngineMode:
-    Description: Database EngineMode
-    Type: String
-    Default: serverless
+  # EngineMode:
+  #   Description: Database EngineMode
+  #   Type: String
+  #   Default: serverless
   MaxCapacity:
     Description: Database Max CPU Capacity
     Type: String
@@ -47,10 +47,10 @@ Parameters:
     Description: Database Min CPU Capacity
     Type: String
     Default: ""
-  LambdaHostSecurityGroup:
-    Description: Lambda Host Security Group
-    Type: String 
-    Default: "" 
+  # LambdaHostSecurityGroup:
+  #   Description: Lambda Host Security Group
+  #   Type: String 
+  #   Default: "" 
   KmsKeyId:
     Description: Business Unit based KMS key Id 
     Type: String
@@ -72,9 +72,9 @@ Parameters:
       - "true"
       - "false"
     Default: "false"
-  RetentionPolicy:
-    Type: Number
-    Default: 30
+  # RetentionPolicy:
+  #   Type: Number
+  #   Default: 30
   CreateGlobalCluster:
     Description: Create GlobalCluster
     Type: String
@@ -107,24 +107,24 @@ Parameters:
 
 
 Conditions:
-  isPrimaryRegion:
-    Fn::Equals:
-    - Ref: PrimaryRegion
-    - Ref: AWS::Region
-  isSecondaryRegion:
-    Fn::Equals:
-    - Ref: SecondaryRegion
-    - Ref: AWS::Region
-  isGlobalCluster:
-    Fn::Equals:
-    - Ref: CreateGlobalCluster
-    - "true"
-  isPrimaryRegionAndCreateGlobalCluster: !And
-    - !Condition isPrimaryRegion
-    - !Condition isGlobalCluster
-  isUseDBSnapshotOrisSecondaryRegion: !Or
-    - !Condition isSecondaryRegion
-    - !Condition isUseDBSnapshot
+  # isPrimaryRegion:
+  #   Fn::Equals:
+  #   - Ref: PrimaryRegion
+  #   - Ref: AWS::Region
+  # isSecondaryRegion:
+  #   Fn::Equals:
+  #   - Ref: SecondaryRegion
+  #   - Ref: AWS::Region
+  # isGlobalCluster:
+  #   Fn::Equals:
+  #   - Ref: CreateGlobalCluster
+  #   - "true"
+  # isPrimaryRegionAndCreateGlobalCluster: !And
+  #   - !Condition isPrimaryRegion
+  #   - !Condition isGlobalCluster
+  # isUseDBSnapshotOrisSecondaryRegion: !Or
+  #   - !Condition isSecondaryRegion
+  #   - !Condition isUseDBSnapshot
   isProduction:
     Fn::Equals:
     - Ref: EnvironmentName
@@ -178,29 +178,29 @@ Conditions:
     Fn::And:
     - Condition: isNonProd
     - Condition: isMinCapacityEmpty    
-  isReplica:
-    Fn::Or:
-    - Condition: isNonProd
-    - Condition: isProduction
+  # isReplica:
+  #   Fn::Or:
+  #   - Condition: isNonProd
+  #   - Condition: isProduction
   isUseDBSnapshot: !Not [!Equals [!Ref DBSnapshotName, ""]]
   EnableBacktrackWindow: !Equals [!Ref EnableBacktrack, "true"]
   EnableBacktrackAndMysql:
     Fn::And:
     - Condition: EnableBacktrackWindow
     - Condition: isMysql
-  isUsEast1:
-    Fn::Equals:
-      - !Ref AWS::Region
-      - us-east-1
-  isEuCentral1:
-    Fn::Equals:
-      - !Ref AWS::Region
-      - eu-central-1  
-  EnableLowerCaseTableNamesParam: !Equals [!Ref EnableLowerCaseTableNames, "true"]
-  EnableLowerCaseTableNamesParamAndisMysql:
-    Fn::And:
-    - Condition: EnableLowerCaseTableNamesParam
-    - Condition: isMysql
+  # isUsEast1:
+  #   Fn::Equals:
+  #     - !Ref AWS::Region
+  #     - us-east-1
+  # isEuCentral1:
+  #   Fn::Equals:
+  #     - !Ref AWS::Region
+  #     - eu-central-1  
+  # EnableLowerCaseTableNamesParam: !Equals [!Ref EnableLowerCaseTableNames, "true"]
+  # EnableLowerCaseTableNamesParamAndisMysql:
+  #   Fn::And:
+  #   - Condition: EnableLowerCaseTableNamesParam
+  #   - Condition: isMysql
 
 Mappings:
   ConfigMap:
